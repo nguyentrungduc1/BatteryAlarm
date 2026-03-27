@@ -24,8 +24,8 @@ class BatteryMonitorService : Service() {
 
         // Repeat alert every 10 minutes (600_000 ms)
         const val ALERT_REPEAT_INTERVAL = 600_000L
-        // TTS duration limit: 5 seconds
-        const val TTS_SPEAK_DURATION = 5_000L
+        // Number of times to repeat the alert
+        const val TTS_REPEAT_COUNT = 6
     }
 
     private lateinit var prefs: SharedPreferences
@@ -39,10 +39,6 @@ class BatteryMonitorService : Service() {
     // Track current battery state
     private var currentBatteryLevel = -1
     private var isCharging = false
-
-    // Handler for scheduling
-    private val handler = Handler(Looper.getMainLooper())
-    private var ttsStopRunnable: Runnable? = null
 
     private val batteryReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -180,9 +176,7 @@ class BatteryMonitorService : Service() {
 
                 tts!!.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                     override fun onStart(utteranceId: String?) {}
-                    override fun onDone(utteranceId: String?) {
-                        handler.removeCallbacks(ttsStopRunnable ?: return)
-                    }
+                    override fun onDone(utteranceId: String?) {}
                     override fun onError(utteranceId: String?) {}
                 })
 
@@ -198,20 +192,18 @@ class BatteryMonitorService : Service() {
 
         tts!!.stop()
 
-        val params = Bundle().apply {
-            putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "battery_alert")
-            putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f)
+        // Queue the message TTS_REPEAT_COUNT times
+        for (i in 1..TTS_REPEAT_COUNT) {
+            val utteranceId = "battery_alert_$i"
+            val params = Bundle().apply {
+                putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, utteranceId)
+                putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f)
+            }
+            val queueMode = if (i == 1) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD
+            tts!!.speak(message, queueMode, params, utteranceId)
         }
 
-        tts!!.speak(message, TextToSpeech.QUEUE_FLUSH, params, "battery_alert")
-
-        // Stop TTS after 5 seconds max
-        ttsStopRunnable?.let { handler.removeCallbacks(it) }
-        ttsStopRunnable = Runnable {
-            tts?.stop()
-            Log.d(TAG, "TTS stopped after 5s")
-        }
-        handler.postDelayed(ttsStopRunnable!!, TTS_SPEAK_DURATION)
+        Log.d(TAG, "TTS speaking \"$message\" x$TTS_REPEAT_COUNT")
     }
 
     // ── Notification ─────────────────────────────────────────────────────────
