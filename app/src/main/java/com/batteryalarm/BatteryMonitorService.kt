@@ -352,7 +352,7 @@ class BatteryMonitorService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Battery Alarm")
             .setContentText(text)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.ic_stat_battery)
             .setContentIntent(pi)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
